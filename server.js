@@ -5,10 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as cheerio from "cheerio";
 
-// ============================================================
-// VOID v2 SERVER
-// ============================================================
-
 const app = express();
 
 const __dirname = path.dirname(
@@ -17,129 +13,212 @@ const __dirname = path.dirname(
 
 const PORT = process.env.PORT || 3000;
 
-// Serve everything inside /public
-app.use(express.static(path.join(__dirname, "public")));
-
 // ============================================================
-// NETWORK SAFETY
-// Prevent VOID from being used to access localhost/private IPs.
+// VOID v2.1 — FAST SERVER
 // ============================================================
 
-function isPrivateIP(ip) {
+app.disable("x-powered-by");
 
-    if (net.isIPv4(ip)) {
+app.use(
+    express.static(
+        path.join(__dirname, "public"),
+        {
+            maxAge: "1h",
+            etag: true
+        }
+    )
+);
 
-        const parts = ip.split(".").map(Number);
+// ============================================================
+// MEMORY CACHE
+// ============================================================
 
-        return (
-            parts[0] === 0 ||
-            parts[0] === 10 ||
-            parts[0] === 127 ||
+const assetCache = new Map();
+const pageCache = new Map();
 
-            (parts[0] === 169 &&
-             parts[1] === 254) ||
+const MAX_ASSET_CACHE = 300;
+const MAX_PAGE_CACHE = 40;
 
-            (parts[0] === 172 &&
-             parts[1] >= 16 &&
-             parts[1] <= 31) ||
+const ASSET_CACHE_TIME = 30 * 60 * 1000;
+const PAGE_CACHE_TIME = 2 * 60 * 1000;
 
-            (parts[0] === 192 &&
-             parts[1] === 168)
-        );
+function cacheGet(cache, key) {
+
+    const item = cache.get(key);
+
+    if (!item) {
+        return null;
     }
 
-    const address = ip.toLowerCase();
+    if (Date.now() > item.expires) {
 
-    return (
-        address === "::1" ||
-        address.startsWith("fc") ||
-        address.startsWith("fd") ||
-        address.startsWith("fe80:")
+        cache.delete(key);
+
+        return null;
+    }
+
+    return item.value;
+}
+
+function cacheSet(
+    cache,
+    key,
+    value,
+    ttl,
+    max
+) {
+
+    if (cache.size >= max) {
+
+        const first =
+            cache.keys().next().value;
+
+        cache.delete(first);
+    }
+
+    cache.set(
+        key,
+        {
+            value,
+            expires:
+                Date.now() + ttl
+        }
     );
 }
 
 // ============================================================
-// CHECK URL
+// PRIVATE NETWORK PROTECTION
 // ============================================================
 
-async function safeURL(rawURL) {
+function privateIP(ip) {
+
+    if (net.isIPv4(ip)) {
+
+        const p =
+            ip.split(".").map(Number);
+
+        return (
+            p[0] === 0 ||
+            p[0] === 10 ||
+            p[0] === 127 ||
+
+            (
+                p[0] === 169 &&
+                p[1] === 254
+            ) ||
+
+            (
+                p[0] === 172 &&
+                p[1] >= 16 &&
+                p[1] <= 31
+            ) ||
+
+            (
+                p[0] === 192 &&
+                p[1] === 168
+            )
+        );
+    }
+
+    const x =
+        ip.toLowerCase();
+
+    return (
+        x === "::1" ||
+        x.startsWith("fc") ||
+        x.startsWith("fd") ||
+        x.startsWith("fe80:")
+    );
+}
+
+// ============================================================
+// URL VALIDATION
+// ============================================================
+
+async function safeURL(raw) {
 
     let url;
 
     try {
 
-        url = new URL(rawURL);
+        url = new URL(raw);
 
     } catch {
 
-        throw new Error("Invalid URL");
+        throw new Error(
+            "Invalid URL"
+        );
     }
 
     if (
         url.protocol !== "http:" &&
         url.protocol !== "https:"
     ) {
+
         throw new Error(
-            "Only HTTP and HTTPS addresses are supported."
+            "Only HTTP/HTTPS is supported"
         );
     }
 
-    // Block usernames/passwords inside URL
-    if (url.username || url.password) {
-
-        throw new Error(
-            "Credentials inside URLs are not supported."
-        );
-    }
-
-    const hostname = url.hostname.toLowerCase();
-
-    // Block localhost
     if (
-        hostname === "localhost" ||
-        hostname.endsWith(".local")
+        url.username ||
+        url.password
     ) {
 
         throw new Error(
-            "Local addresses are blocked."
+            "URL credentials are blocked"
         );
     }
 
-    // Block direct private IP
+    const host =
+        url.hostname.toLowerCase();
+
     if (
-        net.isIP(hostname) &&
-        isPrivateIP(hostname)
+        host === "localhost" ||
+        host.endsWith(".local")
     ) {
 
         throw new Error(
-            "Private addresses are blocked."
+            "Local addresses are blocked"
         );
     }
 
-    // Resolve hostname
-    const records = await dns.lookup(
-        hostname,
-        {
-            all: true
-        }
-    );
+    if (
+        net.isIP(host) &&
+        privateIP(host)
+    ) {
+
+        throw new Error(
+            "Private addresses are blocked"
+        );
+    }
+
+    const records =
+        await dns.lookup(
+            host,
+            {
+                all: true
+            }
+        );
 
     if (!records.length) {
 
         throw new Error(
-            "Website could not be resolved."
+            "Could not resolve website"
         );
     }
 
-    // Block domains resolving to internal/private addresses
     if (
-        records.some(record =>
-            isPrivateIP(record.address)
+        records.some(
+            r =>
+                privateIP(
+                    r.address
+                )
         )
     ) {
 
         throw new Error(
-            "Private addresses are blocked."
+            "Private addresses are blocked"
         );
     }
 
@@ -150,7 +229,10 @@ async function safeURL(rawURL) {
 // HELPERS
 // ============================================================
 
-function absoluteURL(value, base) {
+function absoluteURL(
+    value,
+    base
+) {
 
     try {
 
@@ -165,7 +247,7 @@ function absoluteURL(value, base) {
     }
 }
 
-function proxyAsset(url) {
+function assetProxy(url) {
 
     return (
         "/api/asset?url=" +
@@ -173,8 +255,63 @@ function proxyAsset(url) {
     );
 }
 
+function isDirectAsset(url) {
+
+    try {
+
+        const u =
+            new URL(url);
+
+        return (
+            u.protocol === "https:"
+        );
+
+    } catch {
+
+        return false;
+    }
+}
+
 // ============================================================
-// PAGE FETCHER
+// FETCH WITH TIMEOUT
+// ============================================================
+
+async function fastFetch(
+    url,
+    options = {},
+    timeout = 7000
+) {
+
+    const controller =
+        new AbortController();
+
+    const timer =
+        setTimeout(
+            () =>
+                controller.abort(),
+            timeout
+        );
+
+    try {
+
+        return await fetch(
+            url,
+            {
+                ...options,
+
+                signal:
+                    controller.signal
+            }
+        );
+
+    } finally {
+
+        clearTimeout(timer);
+    }
+}
+
+// ============================================================
+// PAGE ENDPOINT
 // ============================================================
 
 app.get(
@@ -184,42 +321,63 @@ app.get(
 
         try {
 
-            const requestedURL =
-                String(req.query.url || "");
-
-            const url =
-                await safeURL(requestedURL);
-
-            const controller =
-                new AbortController();
-
-            const timeout =
-                setTimeout(
-                    () => controller.abort(),
-                    15000
+            const requested =
+                String(
+                    req.query.url || ""
                 );
 
+            const url =
+                await safeURL(
+                    requested
+                );
+
+            // ----------------------------------------
+            // PAGE CACHE
+            // ----------------------------------------
+
+            const cached =
+                cacheGet(
+                    pageCache,
+                    url.href
+                );
+
+            if (cached) {
+
+                res.set(
+                    "X-VOID-Cache",
+                    "HIT"
+                );
+
+                return res.json(
+                    cached
+                );
+            }
+
+            // ----------------------------------------
+            // DOWNLOAD PAGE
+            // ----------------------------------------
+
             const response =
-                await fetch(
+                await fastFetch(
                     url,
                     {
-                        redirect: "follow",
-
-                        signal:
-                            controller.signal,
+                        redirect:
+                            "follow",
 
                         headers: {
 
                             "User-Agent":
-                                "Mozilla/5.0 VOID/2.0",
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152 Safari/537.36",
 
                             "Accept":
-                                "text/html,application/xhtml+xml"
-                        }
-                    }
-                );
+                                "text/html,application/xhtml+xml",
 
-            clearTimeout(timeout);
+                            "Accept-Language":
+                                "en-US,en;q=0.9"
+                        }
+                    },
+                    8000
+                );
 
             const contentType =
                 response.headers.get(
@@ -233,18 +391,17 @@ app.get(
             ) {
 
                 throw new Error(
-                    "VOID can only display HTML pages here."
+                    "This isn't an HTML page"
                 );
             }
 
-            const rawHTML =
+            const raw =
                 await response.text();
 
-            // Prevent extremely large HTML documents
             const html =
-                rawHTML.slice(
+                raw.slice(
                     0,
-                    4_000_000
+                    5_000_000
                 );
 
             const finalURL =
@@ -253,21 +410,29 @@ app.get(
             const $ =
                 cheerio.load(html);
 
-            // ==================================================
-            // REMOVE ELEMENTS THAT CANNOT SAFELY RUN IN READER
-            // ==================================================
+            // =================================================
+            // REMOVE UNSUPPORTED / HEAVY ELEMENTS
+            // =================================================
 
             $(
-                "script, iframe, object, embed, form"
+                "script, iframe, object, embed"
             ).remove();
 
             $(
                 "meta[http-equiv='refresh']"
             ).remove();
 
-            // ==================================================
-            // STYLESHEETS
-            // ==================================================
+            // Preload tags aren't useful to our reader.
+            $(
+                "link[rel='preload'], link[rel='modulepreload']"
+            ).remove();
+
+            // =================================================
+            // CSS
+            //
+            // CSS still goes through VOID because relative
+            // url(...) paths inside stylesheets need rewriting.
+            // =================================================
 
             $(
                 "link[rel='stylesheet']"
@@ -282,7 +447,7 @@ app.get(
                         return;
                     }
 
-                    const fullURL =
+                    const full =
                         absoluteURL(
                             href,
                             finalURL
@@ -291,18 +456,29 @@ app.get(
                     $(element)
                         .attr(
                             "href",
-                            proxyAsset(
-                                fullURL
+                            assetProxy(
+                                full
                             )
                         );
                 }
             );
 
-            // ==================================================
-            // IMAGES / MEDIA
-            // ==================================================
+            // =================================================
+            // IMAGES
+            //
+            // IMPORTANT PERFORMANCE CHANGE:
+            //
+            // Public HTTPS images load DIRECTLY from the
+            // destination CDN instead of traveling:
+            //
+            // browser -> Render -> website -> Render -> browser
+            //
+            // This saves a lot of requests on free hosting.
+            // =================================================
 
-            $("[src]").each(
+            $(
+                "img[src], source[src]"
+            ).each(
                 (_, element) => {
 
                     const src =
@@ -313,7 +489,6 @@ app.get(
                         return;
                     }
 
-                    // Leave inline data URLs alone
                     if (
                         src.startsWith(
                             "data:"
@@ -322,32 +497,62 @@ app.get(
                         return;
                     }
 
-                    const fullURL =
+                    const full =
                         absoluteURL(
                             src,
                             finalURL
                         );
 
+                    if (
+                        isDirectAsset(
+                            full
+                        )
+                    ) {
+
+                        $(element)
+                            .attr(
+                                "src",
+                                full
+                            );
+
+                    } else {
+
+                        $(element)
+                            .attr(
+                                "src",
+                                assetProxy(
+                                    full
+                                )
+                            );
+                    }
+
+                    // Browser lazy loading
                     $(element)
                         .attr(
-                            "src",
-                            proxyAsset(
-                                fullURL
-                            )
+                            "loading",
+                            "lazy"
+                        );
+
+                    $(element)
+                        .attr(
+                            "decoding",
+                            "async"
                         );
                 }
             );
 
-            // ==================================================
+            // =================================================
             // SRCSET
-            // ==================================================
+            // =================================================
 
             $("[srcset]").each(
                 (_, element) => {
 
                     const srcset =
                         $(element)
-                            .attr("srcset");
+                            .attr(
+                                "srcset"
+                            );
 
                     if (!srcset) {
                         return;
@@ -356,42 +561,47 @@ app.get(
                     const rewritten =
                         srcset
                             .split(",")
-                            .map(item => {
+                            .map(
+                                item => {
 
-                                const pieces =
-                                    item
-                                        .trim()
-                                        .split(
-                                            /\s+/
+                                    const pieces =
+                                        item
+                                            .trim()
+                                            .split(
+                                                /\s+/
+                                            );
+
+                                    const source =
+                                        pieces.shift();
+
+                                    const full =
+                                        absoluteURL(
+                                            source,
+                                            finalURL
                                         );
 
-                                const source =
-                                    pieces.shift();
+                                    const resource =
+                                        isDirectAsset(
+                                            full
+                                        )
+                                            ? full
+                                            : assetProxy(
+                                                full
+                                            );
 
-                                const fullURL =
-                                    absoluteURL(
-                                        source,
-                                        finalURL
+                                    return (
+                                        resource +
+                                        (
+                                            pieces.length
+                                                ? " " +
+                                                  pieces.join(
+                                                      " "
+                                                  )
+                                                : ""
+                                        )
                                     );
-
-                                let output =
-                                    proxyAsset(
-                                        fullURL
-                                    );
-
-                                if (
-                                    pieces.length
-                                ) {
-
-                                    output +=
-                                        " " +
-                                        pieces.join(
-                                            " "
-                                        );
                                 }
-
-                                return output;
-                            })
+                            )
                             .join(", ");
 
                     $(element)
@@ -402,29 +612,31 @@ app.get(
                 }
             );
 
-            // ==================================================
+            // =================================================
             // LINKS
-            // ==================================================
+            // =================================================
 
             $("a[href]").each(
                 (_, element) => {
 
                     const href =
                         $(element)
-                            .attr("href");
+                            .attr(
+                                "href"
+                            );
 
                     if (!href) {
                         return;
                     }
 
-                    // Keep same-page anchors
                     if (
-                        href.startsWith("#")
+                        href.startsWith(
+                            "#"
+                        )
                     ) {
                         return;
                     }
 
-                    // Ignore non-web links
                     if (
                         href.startsWith(
                             "javascript:"
@@ -451,8 +663,6 @@ app.get(
                             finalURL
                         );
 
-                    // VOID frontend catches this
-                    // and loads the page in the current tab.
                     $(element)
                         .attr(
                             "data-void-url",
@@ -465,16 +675,18 @@ app.get(
                 }
             );
 
-            // ==================================================
-            // INLINE STYLE URLS
-            // ==================================================
+            // =================================================
+            // INLINE BACKGROUND IMAGES
+            // =================================================
 
             $("[style]").each(
                 (_, element) => {
 
                     let style =
                         $(element)
-                            .attr("style");
+                            .attr(
+                                "style"
+                            );
 
                     if (!style) {
                         return;
@@ -500,14 +712,24 @@ app.get(
                                     return match;
                                 }
 
-                                const fullURL =
+                                const full =
                                     absoluteURL(
                                         value,
                                         finalURL
                                     );
 
+                                // Prefer direct HTTPS asset
+                                const replacement =
+                                    isDirectAsset(
+                                        full
+                                    )
+                                        ? full
+                                        : assetProxy(
+                                            full
+                                        );
+
                                 return (
-                                    `url("${proxyAsset(fullURL)}")`
+                                    `url("${replacement}")`
                                 );
                             }
                         );
@@ -520,11 +742,11 @@ app.get(
                 }
             );
 
-            // ==================================================
-            // SEND PAGE TO VOID
-            // ==================================================
+            // =================================================
+            // RESULT
+            // =================================================
 
-            res.json({
+            const result = {
 
                 url:
                     finalURL,
@@ -538,13 +760,35 @@ app.get(
 
                 html:
                     $.html()
-            });
+            };
+
+            cacheSet(
+                pageCache,
+                url.href,
+                result,
+                PAGE_CACHE_TIME,
+                MAX_PAGE_CACHE
+            );
+
+            res.set(
+                "Cache-Control",
+                "private, max-age=60"
+            );
+
+            res.set(
+                "X-VOID-Cache",
+                "MISS"
+            );
+
+            res.json(
+                result
+            );
 
         } catch (error) {
 
             console.error(
-                "VOID page error:",
-                error
+                "VOID PAGE:",
+                error.message
             );
 
             if (
@@ -556,7 +800,7 @@ app.get(
                     .status(408)
                     .json({
                         error:
-                            "The website took too long to respond."
+                            "Website took too long to respond"
                     });
             }
 
@@ -571,8 +815,7 @@ app.get(
 );
 
 // ============================================================
-// ASSET FETCHER
-// Loads CSS/images/fonts used by compatible pages.
+// FAST ASSET ENDPOINT
 // ============================================================
 
 app.get(
@@ -582,86 +825,107 @@ app.get(
 
         try {
 
-            const requestedURL =
+            const requested =
                 String(
                     req.query.url || ""
                 );
 
             const url =
                 await safeURL(
-                    requestedURL
+                    requested
                 );
 
-            const controller =
-                new AbortController();
+            // ----------------------------------------
+            // MEMORY CACHE
+            // ----------------------------------------
 
-            const timeout =
-                setTimeout(
-                    () =>
-                        controller.abort(),
-                    15000
+            const cached =
+                cacheGet(
+                    assetCache,
+                    url.href
                 );
+
+            if (cached) {
+
+                res.set(
+                    "Content-Type",
+                    cached.type
+                );
+
+                res.set(
+                    "Cache-Control",
+                    "public, max-age=86400"
+                );
+
+                res.set(
+                    "X-VOID-Cache",
+                    "HIT"
+                );
+
+                return res.send(
+                    cached.body
+                );
+            }
+
+            // ----------------------------------------
+            // FETCH
+            // ----------------------------------------
 
             const response =
-                await fetch(
+                await fastFetch(
                     url,
                     {
                         redirect:
                             "follow",
 
-                        signal:
-                            controller.signal,
-
                         headers: {
 
                             "User-Agent":
-                                "Mozilla/5.0 VOID/2.0"
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152 Safari/537.36"
                         }
-                    }
+                    },
+                    6000
                 );
 
-            clearTimeout(
-                timeout
-            );
-
-            if (
-                !response.ok
-            ) {
+            if (!response.ok) {
 
                 throw new Error(
-                    `Asset returned ${response.status}`
+                    `Asset ${response.status}`
                 );
             }
 
-            const contentType =
+            const type =
                 response.headers.get(
                     "content-type"
                 ) ||
                 "application/octet-stream";
 
+            const arrayBuffer =
+                await response
+                    .arrayBuffer();
+
             const buffer =
                 Buffer.from(
-                    await response
-                        .arrayBuffer()
+                    arrayBuffer
                 );
 
-            // Don't let one resource consume huge amounts of RAM
+            // Free Render instances have limited RAM.
             if (
                 buffer.length >
-                12_000_000
+                10_000_000
             ) {
 
                 throw new Error(
-                    "Asset is too large."
+                    "Asset too large"
                 );
             }
 
-            // ==================================================
-            // CSS NEEDS ITS OWN URL REWRITING
-            // ==================================================
+            // =================================================
+            // CSS REWRITING
+            // =================================================
 
             if (
-                contentType.includes(
+                type.includes(
                     "text/css"
                 )
             ) {
@@ -691,34 +955,98 @@ app.get(
                                 return match;
                             }
 
-                            const fullURL =
+                            const full =
                                 absoluteURL(
                                     value,
                                     response.url
                                 );
 
+                            // Fonts/images referenced by CSS
+                            // can usually load directly.
+                            const replacement =
+                                isDirectAsset(
+                                    full
+                                )
+                                    ? full
+                                    : assetProxy(
+                                        full
+                                    );
+
                             return (
-                                `url("${proxyAsset(fullURL)}")`
+                                `url("${replacement}")`
                             );
                         }
                     );
 
-                res
-                    .type("text/css")
-                    .send(css);
+                const cssBuffer =
+                    Buffer.from(
+                        css,
+                        "utf8"
+                    );
 
-                return;
+                cacheSet(
+                    assetCache,
+                    url.href,
+                    {
+                        type:
+                            "text/css; charset=utf-8",
+
+                        body:
+                            cssBuffer
+                    },
+                    ASSET_CACHE_TIME,
+                    MAX_ASSET_CACHE
+                );
+
+                res.set(
+                    "Content-Type",
+                    "text/css; charset=utf-8"
+                );
+
+                res.set(
+                    "Cache-Control",
+                    "public, max-age=86400"
+                );
+
+                res.set(
+                    "X-VOID-Cache",
+                    "MISS"
+                );
+
+                return res.send(
+                    cssBuffer
+                );
             }
+
+            // =================================================
+            // OTHER ASSET
+            // =================================================
+
+            cacheSet(
+                assetCache,
+                url.href,
+                {
+                    type,
+                    body:
+                        buffer
+                },
+                ASSET_CACHE_TIME,
+                MAX_ASSET_CACHE
+            );
 
             res.set(
                 "Content-Type",
-                contentType
+                type
             );
 
-            // Cache ordinary assets briefly
             res.set(
                 "Cache-Control",
-                "public, max-age=3600"
+                "public, max-age=86400"
+            );
+
+            res.set(
+                "X-VOID-Cache",
+                "MISS"
             );
 
             res.send(
@@ -728,15 +1056,13 @@ app.get(
         } catch (error) {
 
             console.error(
-                "VOID asset error:",
-                error
+                "VOID ASSET:",
+                error.message
             );
 
             res
-                .status(400)
-                .send(
-                    "VOID asset unavailable"
-                );
+                .status(404)
+                .send("");
         }
     }
 );
@@ -756,25 +1082,22 @@ app.get(
                 "VOID",
 
             version:
-                "2.0.0",
+                "2.1-fast",
 
             status:
-                "online"
+                "online",
+
+            pageCache:
+                pageCache.size,
+
+            assetCache:
+                assetCache.size
         });
     }
 );
 
 // ============================================================
-// FRONTEND FALLBACK
-//
-// IMPORTANT:
-//
-// DO NOT change this to:
-//
-// app.get("*", ...)
-//
-// Express 5 will crash with:
-// "Missing parameter name at index 1: *"
+// VOID FRONTEND
 // ============================================================
 
 app.use(
@@ -791,7 +1114,7 @@ app.use(
 );
 
 // ============================================================
-// START VOID
+// START
 // ============================================================
 
 app.listen(
@@ -802,15 +1125,15 @@ app.listen(
 
         console.log("");
         console.log(
-            "========================================"
+            "======================================"
         );
 
         console.log(
-            "            VOID v2 ONLINE"
+            "       VOID v2.1 FAST ONLINE"
         );
 
         console.log(
-            "========================================"
+            "======================================"
         );
 
         console.log(
