@@ -1,42 +1,101 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VOID</title>
+from pathlib import Path
+p=Path("/mnt/data/index.html")
+p.write_text(r'''<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOID</title>
 <style>
-*{box-sizing:border-box} :root{--bg:#050508;--p:#0d0d14;--p2:#12121c;--line:#272738;--mut:#85859a;--a:#8b5cf6}
-body{margin:0;background:var(--bg);color:#f4f4f7;font:14px Inter,system-ui,sans-serif;overflow:hidden}
-.shell{display:grid;grid-template-columns:230px 1fr;height:100vh}.side{border-right:1px solid var(--line);background:linear-gradient(180deg,#0c0c12,#07070b);padding:18px 12px;overflow:auto}.logo{font-size:23px;font-weight:900;letter-spacing:8px;padding:8px 10px 25px}
-.label{font-size:10px;letter-spacing:2px;color:#65657a;margin:18px 10px 8px}.nav{display:flex;align-items:center;gap:11px;padding:10px;border-radius:11px;cursor:pointer;color:#b8b8c7}.nav:hover,.nav.active{background:#171724;color:white}.nav img{width:29px;height:29px;border-radius:8px;object-fit:cover}.main{min-width:0;display:flex;flex-direction:column}
-.tabs{height:42px;background:#08080d;border-bottom:1px solid var(--line);display:flex;align-items:end;padding-left:10px;gap:4px}.tab{max-width:190px;padding:9px 13px;border:1px solid var(--line);border-bottom:0;background:#111119;border-radius:10px 10px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tab b{margin-left:12px;color:#777;cursor:pointer}
-.toolbar{height:58px;display:flex;gap:7px;padding:9px;background:#0b0b11;border-bottom:1px solid var(--line)}button{border:1px solid #303041;background:#14141d;color:white;border-radius:11px;min-width:40px;cursor:pointer}.go{background:var(--a);border:0;padding:0 17px}.addr{flex:1;background:#111119;border:1px solid #303041;border-radius:12px;color:#eee;padding:0 14px;outline:none}
-#view{flex:1;overflow:auto;position:relative}.home{min-height:100%;display:grid;place-items:center;text-align:center;background:radial-gradient(circle at 50% 10%,#251642 0,#08080d 35%,#050508 70%)}.home h1{font-size:clamp(75px,11vw,150px);margin:0;letter-spacing:-8px;background:linear-gradient(#fff,#676778);color:transparent;background-clip:text}.home p{color:var(--mut);letter-spacing:4px}
-.web{background:white;color:#111;min-height:100%;width:100%;overflow:auto}.web a{cursor:pointer}.status{position:absolute;left:50%;top:20px;transform:translateX(-50%);padding:10px 15px;border:1px solid var(--line);border-radius:12px;background:#101018;color:#aaa;z-index:3}
-.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.card{height:75px;border:1px solid var(--line);border-radius:13px;background:#111119;overflow:hidden;cursor:pointer;position:relative}.card img{width:100%;height:100%;object-fit:cover;opacity:.65}.card span{position:absolute;left:8px;bottom:7px;font-size:11px;font-weight:700;text-shadow:0 2px 5px #000}
-@media(max-width:750px){.shell{grid-template-columns:70px 1fr}.logo{font-size:13px;letter-spacing:2px}.nav span,.label{display:none}.nav{justify-content:center}.cards{grid-template-columns:1fr}.card span{display:none}}
-</style></head><body><div class="shell">
-<aside class="side"><div class="logo">VOID</div><div class="nav active" onclick="home()">⌂ <span>Home</span></div>
-<div class="label">APPS</div>
-<div class="nav" onclick="visit('https://www.tiktok.com')"><img src="https://www.google.com/s2/favicons?domain=tiktok.com&sz=64"><span>TikTok</span></div>
-<div class="nav" onclick="visit('https://discord.com/app')"><img src="https://www.google.com/s2/favicons?domain=discord.com&sz=64"><span>Discord</span></div>
-<div class="nav" onclick="visit('https://www.roblox.com')"><img src="https://www.google.com/s2/favicons?domain=roblox.com&sz=64"><span>Roblox</span></div>
-<div class="nav" onclick="visit('https://www.snapchat.com')"><img src="https://www.google.com/s2/favicons?domain=snapchat.com&sz=64"><span>Snapchat</span></div>
-<div class="nav" onclick="visit('https://www.youtube.com')"><img src="https://www.google.com/s2/favicons?domain=youtube.com&sz=64"><span>YouTube</span></div>
-<div class="label">GAMES</div><div class="cards">
-<div class="card" onclick="visit('https://www.crazygames.com')"><img src="https://www.google.com/s2/favicons?domain=crazygames.com&sz=128"><span>CrazyGames</span></div>
-<div class="card" onclick="visit('https://poki.com')"><img src="https://www.google.com/s2/favicons?domain=poki.com&sz=128"><span>Poki</span></div>
-<div class="card" onclick="visit('https://2048game.com')"><img src="https://www.google.com/s2/favicons?domain=2048game.com&sz=128"><span>2048</span></div>
-<div class="card" onclick="visit('https://lichess.org')"><img src="https://www.google.com/s2/favicons?domain=lichess.org&sz=128"><span>Chess</span></div></div></aside>
-<section class="main"><div class="tabs" id="tabs"></div><div class="toolbar"><button onclick="back()">←</button><button onclick="forward()">→</button><button onclick="reload()">↻</button><input class="addr" id="addr" placeholder="Search or enter an address" onkeydown="if(event.key==='Enter')go()"><button class="go" onclick="go()">GO</button><button onclick="newTab()">＋</button></div><main id="view"></main></section>
-</div><script>
-let T=[],active=-1;
-function mk(){return{id:crypto.randomUUID(),title:"New Tab",url:"",hist:[],pos:-1}}
-function newTab(){T.push(mk());active=T.length-1;renderTabs();home()}
-function renderTabs(){tabs.innerHTML=T.map((t,i)=>`<div class="tab" onclick="selectTab(${i})">${esc(t.title)} <b onclick="event.stopPropagation();closeTab(${i})">×</b></div>`).join("")}
-function selectTab(i){active=i;renderTabs();let t=T[i];if(t.url)load(t.url,false);else home()}
-function closeTab(i){T.splice(i,1);if(!T.length)return newTab();active=Math.min(active,T.length-1);selectTab(active)}
-function home(){let t=T[active];if(t){t.url="";t.title="New Tab"}addr.value="";view.innerHTML=`<div class="home"><div><h1>VOID</h1><p>ENTER THE NETWORK</p></div></div>`;renderTabs()}
-function target(s){s=s.trim();if(/^https?:\/\//i.test(s))return s;if(/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(s))return"https://"+s;return"https://en.wikipedia.org/w/index.php?search="+encodeURIComponent(s)}
-function go(){visit(target(addr.value))}
-function visit(u){let t=T[active];t.hist=t.hist.slice(0,t.pos+1);t.hist.push(u);t.pos++;load(u,true)}
-async function load(u){let t=T[active];t.url=u;addr.value=u;view.innerHTML='<div class="status">Loading through VOID…</div>';try{let r=await fetch("/api/page?url="+encodeURIComponent(u)),d=await r.json();if(!r.ok)throw Error(d.error);t.url=d.url;t.title=d.title||"Page";addr.value=d.url;renderTabs();let doc=new DOMParser().parseFromString(d.html,"text/html");doc.querySelectorAll("script").forEach(x=>x.remove());view.innerHTML='<div class="web" id="web"></div>';let styles=[...doc.head.querySelectorAll('style,link[rel="stylesheet"]')];styles.forEach(x=>web.appendChild(x));[...doc.body.childNodes].forEach(x=>web.appendChild(x));web.querySelectorAll("[data-void-url]").forEach(a=>a.onclick=e=>{e.preventDefault();visit(a.dataset.voidUrl)})}catch(e){view.innerHTML=`<div class="home"><div><h2>Page couldn't be rendered</h2><p>${esc(e.message)}</p><p style="color:#777">Some interactive web apps require their original site.</p></div></div>`}}
-function back(){let t=T[active];if(t.pos>0){t.pos--;load(t.hist[t.pos])}}function forward(){let t=T[active];if(t.pos<t.hist.length-1){t.pos++;load(t.hist[t.pos])}}function reload(){let t=T[active];if(t.url)load(t.url)}
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden}
+:root{--bg:#050507;--side:#09090e;--panel:#0d0d14;--panel2:#12121b;--line:#272734;--text:#f4f4f7;--muted:#858595;--accent:#8b5cf6;--sidew:238px}
+body{font:14px Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+button,input{font:inherit}.app{height:100%;display:grid;grid-template-columns:var(--sidew) minmax(0,1fr);transition:.25s}
+.app.collapsed{--sidew:72px}.sidebar{min-width:0;background:linear-gradient(180deg,#0d0d14,#07070b);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;z-index:10}
+.sideTop{height:64px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid #1b1b25}.logo{font-weight:950;font-size:20px;letter-spacing:7px;flex:1;white-space:nowrap;overflow:hidden}.collapse,.tool,.plus{border:1px solid #30303f;background:#14141d;color:#ddd;border-radius:11px;cursor:pointer}.collapse{width:34px;height:34px}
+.sideScroll{padding:12px;overflow:auto;scrollbar-width:none}.section{font-size:10px;color:#666679;letter-spacing:2px;margin:14px 9px 8px}.nav{height:44px;border-radius:12px;display:flex;align-items:center;gap:11px;padding:6px 9px;color:#b9b9c7;cursor:pointer;margin-bottom:3px;transition:.16s}.nav:hover,.nav.active{background:#171720;color:#fff}.ico{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#1a1a24;flex:none;overflow:hidden;font-weight:800}.ico img{width:100%;height:100%;object-fit:cover}.nav span:last-child{white-space:nowrap;overflow:hidden}
+.gameGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.game{height:74px;border:1px solid #252533;background:#101017;border-radius:13px;overflow:hidden;cursor:pointer;position:relative}.game img{width:100%;height:100%;object-fit:cover;opacity:.72}.game b{position:absolute;left:8px;bottom:7px;font-size:11px;text-shadow:0 2px 6px #000}
+.collapsed .logo,.collapsed .nav span:last-child,.collapsed .section,.collapsed .game b{display:none}.collapsed .nav{justify-content:center;padding:6px}.collapsed .gameGrid{grid-template-columns:1fr}.collapsed .game{height:45px}
+.browser{min-width:0;height:100%;display:grid;grid-template-rows:43px 59px minmax(0,1fr)}
+.tabbar{display:flex;align-items:end;gap:5px;padding:0 9px;background:#08080c;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tab{height:35px;width:190px;max-width:28vw;flex:none;border:1px solid var(--line);border-bottom:0;background:#0e0e15;border-radius:11px 11px 0 0;padding:0 10px;display:flex;align-items:center;gap:8px;color:#999;cursor:pointer}
+.tab.active{background:#15151e;color:#fff}.tabTitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.x{color:#777;font-size:17px}.plus{height:29px;width:31px;margin:0 0 3px}
+.toolbar{display:flex;align-items:center;gap:7px;padding:9px 11px;background:#0c0c12;border-bottom:1px solid var(--line);z-index:8}.tool{width:39px;height:39px}.tool:hover,.collapse:hover,.plus:hover{background:#1c1c27}.addressWrap{height:40px;flex:1;min-width:80px;border:1px solid #30303e;background:#111119;border-radius:12px;display:flex;align-items:center;padding:0 5px 0 12px}.lock{color:#777;margin-right:8px}.address{border:0;outline:0;background:transparent;color:#eee;width:100%;min-width:0}.go{height:30px;border:0;background:var(--accent);color:white;border-radius:9px;padding:0 14px;cursor:pointer}
+.stage{position:relative;min-width:0;min-height:0;background:#050507;overflow:hidden}.frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:white;display:none}.frame.show{display:block}
+.home{position:absolute;inset:0;overflow:auto;background:radial-gradient(circle at 50% 5%,#29194a 0,#0a0a10 34%,#050507 70%);display:grid;place-items:center;padding:35px}.home.hide{display:none}.hero{text-align:center;width:min(760px,92%)}.hero h1{font-size:clamp(70px,11vw,145px);letter-spacing:-8px;line-height:.8;margin:0;background:linear-gradient(#fff,#666674);color:transparent;background-clip:text}.hero p{color:#88889a;letter-spacing:5px;margin:26px 0}.homeSearch{height:55px;border:1px solid #343445;background:#0e0e16cc;border-radius:17px;display:flex;padding:6px;box-shadow:0 22px 80px #0009}.homeSearch input{flex:1;min-width:0;border:0;outline:0;background:none;color:#fff;padding:0 12px;font-size:15px}.quick{margin-top:24px;display:grid;grid-template-columns:repeat(5,1fr);gap:9px}.quick div{padding:13px 8px;border:1px solid #292937;border-radius:13px;background:#0e0e15aa;cursor:pointer;color:#aaa}.quick div:hover{background:#171721;color:white}
+.loading{position:absolute;left:0;right:0;top:0;height:2px;overflow:hidden;display:none;z-index:20}.loading.on{display:block}.loading:after{content:"";display:block;width:35%;height:100%;background:var(--accent);box-shadow:0 0 14px var(--accent);animation:load 1s infinite}@keyframes load{from{transform:translateX(-110%)}to{transform:translateX(310%)}}
+.toast{position:absolute;right:18px;bottom:18px;background:#101018;border:1px solid #30303f;border-radius:12px;padding:11px 14px;color:#aaa;opacity:0;transform:translateY(8px);transition:.2s;z-index:30;pointer-events:none}.toast.on{opacity:1;transform:none}
+@media(max-width:780px){:root{--sidew:72px}.logo,.nav span:last-child,.section,.game b{display:none}.nav{justify-content:center;padding:6px}.gameGrid{grid-template-columns:1fr}.game{height:45px}.quick{grid-template-columns:repeat(2,1fr)}.hero h1{letter-spacing:-4px}.tab{width:145px}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<aside class="sidebar">
+ <div class="sideTop"><div class="logo">VOID</div><button class="collapse" onclick="toggleSide()">☰</button></div>
+ <div class="sideScroll">
+  <div class="nav active" onclick="showHome()"><div class="ico">⌂</div><span>Home</span></div>
+  <div class="section">APPS</div>
+  <div class="nav" onclick="navigate('https://www.tiktok.com')"><div class="ico"><img src="https://www.google.com/s2/favicons?domain=tiktok.com&sz=128"></div><span>TikTok</span></div>
+  <div class="nav" onclick="navigate('https://discord.com/app')"><div class="ico"><img src="https://www.google.com/s2/favicons?domain=discord.com&sz=128"></div><span>Discord</span></div>
+  <div class="nav" onclick="navigate('https://www.roblox.com')"><div class="ico"><img src="https://www.google.com/s2/favicons?domain=roblox.com&sz=128"></div><span>Roblox</span></div>
+  <div class="nav" onclick="navigate('https://www.snapchat.com')"><div class="ico"><img src="https://www.google.com/s2/favicons?domain=snapchat.com&sz=128"></div><span>Snapchat</span></div>
+  <div class="nav" onclick="navigate('https://www.youtube.com')"><div class="ico"><img src="https://www.google.com/s2/favicons?domain=youtube.com&sz=128"></div><span>YouTube</span></div>
+  <div class="section">GAMES</div>
+  <div class="gameGrid">
+   <div class="game" onclick="navigate('https://www.crazygames.com')"><img src="https://www.google.com/s2/favicons?domain=crazygames.com&sz=128"><b>CrazyGames</b></div>
+   <div class="game" onclick="navigate('https://poki.com')"><img src="https://www.google.com/s2/favicons?domain=poki.com&sz=128"><b>Poki</b></div>
+   <div class="game" onclick="navigate('https://lichess.org')"><img src="https://www.google.com/s2/favicons?domain=lichess.org&sz=128"><b>Chess</b></div>
+   <div class="game" onclick="navigate('https://2048game.com')"><img src="https://www.google.com/s2/favicons?domain=2048game.com&sz=128"><b>2048</b></div>
+  </div>
+ </div>
+</aside>
+
+<section class="browser">
+ <div class="tabbar" id="tabbar"></div>
+ <div class="toolbar">
+  <button class="tool" onclick="back()">←</button><button class="tool" onclick="forward()">→</button><button class="tool" onclick="reload()">↻</button>
+  <div class="addressWrap"><span class="lock">◇</span><input id="address" class="address" placeholder="Search or enter a URL" onkeydown="if(event.key==='Enter')go()"><button class="go" onclick="go()">GO</button></div>
+  <button class="tool" onclick="fullscreen()">⛶</button>
+ </div>
+ <div class="stage" id="stage">
+  <div class="loading" id="loading"></div>
+  <iframe id="frame" class="frame" sandbox="allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>
+  <div class="home" id="home"><div class="hero"><h1>VOID</h1><p>ENTER THE NETWORK</p>
+   <div class="homeSearch"><input id="homeQ" placeholder="Search or enter an address" onkeydown="if(event.key==='Enter')homeGo()"><button class="go" onclick="homeGo()">SEARCH</button></div>
+   <div class="quick"><div onclick="navigate('https://en.wikipedia.org')">Wikipedia</div><div onclick="navigate('https://www.tiktok.com')">TikTok</div><div onclick="navigate('https://discord.com/app')">Discord</div><div onclick="navigate('https://www.roblox.com')">Roblox</div><div onclick="navigate('https://www.youtube.com')">YouTube</div></div>
+  </div></div>
+  <div class="toast" id="toast"></div>
+ </div>
+</section>
+</div>
+<script>
+const $=id=>document.getElementById(id);let tabs=[],active=-1;
+function tabObj(){return{title:"New Tab",url:"",history:[],pos:-1,html:""}}
+function addTab(){tabs.push(tabObj());active=tabs.length-1;renderTabs();showHome()}
+function renderTabs(){let b=$("tabbar");b.innerHTML=tabs.map((t,i)=>`<div class="tab ${i===active?"active":""}" onclick="selectTab(${i})"><span class="tabTitle">${esc(t.title)}</span><span class="x" onclick="event.stopPropagation();closeTab(${i})">×</span></div>`).join("")+`<button class="plus" onclick="addTab()">＋</button>`}
+function selectTab(i){active=i;renderTabs();let t=tabs[i];if(!t.url)return showHome(false);$("address").value=t.url;$("home").classList.add("hide");$("frame").classList.add("show");$("frame").srcdoc=t.html}
+function closeTab(i){tabs.splice(i,1);if(!tabs.length)return addTab();active=Math.min(active,tabs.length-1);selectTab(active)}
+function toggleSide(){$("app").classList.toggle("collapsed")}
+function showHome(reset=true){let t=tabs[active];if(reset&&t){t.title="New Tab";t.url="";t.html=""}$("address").value="";$("frame").classList.remove("show");$("frame").srcdoc="";$("home").classList.remove("hide");renderTabs()}
+function target(s){s=s.trim();if(!s)return"";if(/^https?:\/\//i.test(s))return s;if(/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(s))return"https://"+s;return"https://en.wikipedia.org/w/index.php?search="+encodeURIComponent(s)}
+function go(){navigate(target($("address").value))}function homeGo(){navigate(target($("homeQ").value))}
+async function navigate(url,push=true){
+ if(!url)return;let t=tabs[active];if(push){t.history=t.history.slice(0,t.pos+1);t.history.push(url);t.pos++}
+ $("loading").classList.add("on");$("home").classList.add("hide");$("frame").classList.remove("show");$("address").value=url;
+ try{
+  let r=await fetch("/api/page?url="+encodeURIComponent(url)),d=await r.json();if(!r.ok)throw Error(d.error||"Unable to load page");
+  t.url=d.url;t.title=d.title||new URL(d.url).hostname;
+  // Inject a tiny bridge that turns rewritten links into messages to the parent.
+  let bridge=`<script>document.addEventListener('click',e=>{let a=e.target.closest('[data-void-url]');if(a){e.preventDefault();parent.postMessage({type:'void-nav',url:a.getAttribute('data-void-url')},'*')}})<\/script>`;
+  t.html=d.html.replace(/<\/body>/i,bridge+"</body>");$("address").value=t.url;$("frame").srcdoc=t.html;$("frame").classList.add("show");renderTabs();
+ }catch(e){t.title="Load Error";t.html=`<!doctype html><style>body{font:16px system-ui;background:#fff;color:#111;padding:50px}main{max-width:700px;margin:auto}h1{font-size:30px}p{color:#666}</style><main><h1>VOID couldn't render this page.</h1><p>${esc(e.message)}</p><p>Some modern web apps require their original site, scripts, authentication, or browser security features.</p></main>`;$("frame").srcdoc=t.html;$("frame").classList.add("show");renderTabs()
+ }finally{$("loading").classList.remove("on")}
+}
+addEventListener("message",e=>{if(e.data&&e.data.type==="void-nav"&&/^https?:\/\//.test(e.data.url))navigate(e.data.url)});
+function back(){let t=tabs[active];if(t.pos>0){t.pos--;navigate(t.history[t.pos],false)}}function forward(){let t=tabs[active];if(t.pos<t.history.length-1){t.pos++;navigate(t.history[t.pos],false)}}function reload(){let t=tabs[active];if(t.url)navigate(t.url,false)}
+function fullscreen(){if(!document.fullscreenElement)$("stage").requestFullscreen?.();else document.exitFullscreen?.()}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-newTab();
-</script></body></html>
+addTab();
+</script>
+</body></html>''',encoding="utf-8")
+print(f"Created {p} ({p.stat().st_size:,} bytes)")
