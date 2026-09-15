@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOID Browser</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#050507;color:#eee;font:14px system-ui;overflow:hidden}
+header{height:62px;display:flex;align-items:center;gap:9px;padding:10px 14px;background:#0b0b10;border-bottom:1px solid #272733}
+.logo{font-weight:900;letter-spacing:5px;margin-right:8px}.btn{height:40px;min-width:40px;border:1px solid #30303d;background:#121219;color:#eee;border-radius:12px;cursor:pointer}
+form{display:flex;flex:1;gap:8px}input{flex:1;background:#111117;border:1px solid #30303d;color:white;border-radius:12px;padding:0 14px;outline:none}
+.go{background:#7c3aed;border-color:#8b5cf6;padding:0 18px}.tabs{height:42px;display:flex;align-items:end;padding:0 12px;background:#08080c}
+.tab{padding:10px 18px;background:#111118;border:1px solid #292934;border-bottom:0;border-radius:10px 10px 0 0}
+main{height:calc(100vh - 104px);overflow:auto;background:radial-gradient(circle at top,#1b102f,#050507 45%);padding:24px}
+.home{min-height:100%;display:grid;place-items:center;text-align:center}.home h1{font-size:90px;letter-spacing:-6px;margin:0}.muted{color:#8d8d9c}
+#page{max-width:1100px;margin:auto;background:#fff;color:#111;border-radius:14px;padding:24px;min-height:80%;overflow-wrap:anywhere}
+#page img,#page video{max-width:100%;height:auto}#page a{color:#5b21b6}
+.notice{padding:12px 14px;border:1px solid #343443;background:#101018;border-radius:12px;margin-bottom:15px;color:#aaa}
+@media(max-width:600px){.logo{display:none}.home h1{font-size:64px}}
+</style></head><body>
+<header><div class="logo">VOID</div><button class="btn" onclick="back()">←</button><button class="btn" onclick="forward()">→</button><button class="btn" onclick="reload()">↻</button>
+<form onsubmit="nav(event)"><input id="address" autocomplete="off" placeholder="Search or enter URL"><button class="btn go">GO</button></form></header>
+<div class="tabs"><div class="tab" id="tab">New Tab</div></div>
+<main id="view"><div class="home"><div><h1>VOID</h1><p class="muted">Search the web. Read compatible pages without leaving VOID.</p></div></div></main>
+<script>
+let historyList=[],pos=-1,current="";
+function target(s){
+ s=s.trim();
+ if(!s)return "";
+ if(/^https?:\/\//i.test(s))return s;
+ if(/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(s))return "https://"+s;
+ return "https://duckduckgo.com/html/?q="+encodeURIComponent(s);
+}
+async function nav(e){e.preventDefault();let u=target(address.value);if(!u)return;historyList=historyList.slice(0,pos+1);historyList.push(u);pos++;await load(u)}
+async function load(u){
+ current=u;address.value=u;tab.textContent="Loading…";
+ view.innerHTML='<div class="notice">Loading through VOID…</div>';
+ try{
+  let r=await fetch("/api/fetch?url="+encodeURIComponent(u)),d=await r.json();
+  if(!r.ok)throw Error(d.error||"Request failed");
+  current=d.url;address.value=d.url;
+  let doc=new DOMParser().parseFromString(d.body,"text/html");
+  tab.textContent=(doc.title||new URL(d.url).hostname).slice(0,35);
+  doc.querySelectorAll("script,iframe,object,embed,base,form").forEach(x=>x.remove());
+  doc.querySelectorAll("[src]").forEach(x=>{try{x.src=new URL(x.getAttribute("src"),d.url).href}catch{}});
+  doc.querySelectorAll("a[href]").forEach(a=>{try{a.dataset.void=new URL(a.getAttribute("href"),d.url).href;a.href="#"}catch{}});
+  view.innerHTML='<div class="notice">VOID Reader · Interactive logins, scripts, video apps, and some protected sites will not work here.</div><article id="page"></article>';
+  page.innerHTML=doc.body?.innerHTML||d.body;
+  page.querySelectorAll("a[data-void]").forEach(a=>a.onclick=ev=>{ev.preventDefault();let u=a.dataset.void;historyList=historyList.slice(0,pos+1);historyList.push(u);pos++;load(u)});
+ }catch(err){tab.textContent="Error";view.innerHTML='<div class="home"><div><h2>Could not open this page</h2><p class="muted">'+escapeHtml(err.message)+'</p><p class="muted">Try another public HTML page.</p></div></div>'}
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function back(){if(pos>0){pos--;load(historyList[pos])}} function forward(){if(pos<historyList.length-1){pos++;load(historyList[pos])}} function reload(){if(current)load(current)}
+</script></body></html>
